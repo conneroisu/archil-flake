@@ -4,7 +4,7 @@ Unofficial reproducible Nix package for the [Archil](https://archil.com) distrib
 
 ## What is Archil?
 
-Archil is a distributed storage service that allows you to mount cloud storage as a local filesystem using FUSE.
+[Archil](https://docs.archil.com/getting-started/introduction) is a distributed storage service that allows you to mount cloud storage as a local filesystem using FUSE.
 
 This flake packages the official Archil client binary for use with Nix and NixOS.
 
