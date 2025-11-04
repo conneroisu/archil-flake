@@ -252,9 +252,54 @@ nix develop
 
 ### Updating the Package
 
-To update to a newer Archil version:
+#### Automated Updates (Recommended)
 
-1. Update the version number in `flake.nix:82`
+This repository uses a GitHub Actions workflow that automatically checks for new Archil versions every Monday at 00:00 UTC. When a new version is detected:
+
+1. The workflow runs `./update.sh` to update version and hashes
+2. A pull request is automatically created with the changes
+3. Comprehensive validation runs on multiple architectures:
+   - x86_64-linux build test
+   - aarch64-linux build test
+   - Nix flake validation
+   - Code formatting verification
+4. If all checks pass, the PR is automatically merged
+
+You can also trigger the update workflow manually:
+- Go to the "Actions" tab in GitHub
+- Select "Update Archil Version"
+- Click "Run workflow"
+
+#### Manual Updates
+
+To manually update to a newer Archil version:
+
+1. Run the update script:
+```bash
+./update.sh --verbose
+```
+
+The script will automatically:
+- Fetch the latest version from upstream
+- Verify packages exist for both architectures
+- Compute SHA256 hashes using `nix-prefetch-url`
+- Update `flake.nix` with new version and hashes
+
+2. Test the build:
+```bash
+nix build .#archil
+./result/bin/archil --version
+```
+
+3. Commit and push:
+```bash
+git add flake.nix
+git commit -m "chore: update archil to X.Y.Z-TIMESTAMP"
+git push
+```
+
+Alternatively, you can manually update:
+1. Update the version number in `flake.nix:84`
 2. Fetch new hashes:
 
 ```bash
@@ -265,7 +310,7 @@ nix-prefetch-url https://s3.amazonaws.com/archil-client/pkg/archil-<VERSION>.x86
 nix-prefetch-url https://s3.amazonaws.com/archil-client/pkg/archil-<VERSION>.aarch64.rpm
 ```
 
-3. Update the `sha256` hashes in `flake.nix:89-92`
+3. Update the `sha256` hashes in `flake.nix:91-94`
 4. Rebuild and test
 
 ## License
