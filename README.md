@@ -13,7 +13,9 @@ This flake packages the official Archil client binary for use with Nix and NixOS
 - ✅ Multi-architecture support (x86_64-linux, aarch64-linux)
 - ✅ Automatic dependency management via autoPatchelfHook
 - ✅ Reproducible builds with locked dependencies
-- ✅ Declarative configuration for NixOS
+- ✅ Declarative NixOS module for mount configuration
+- ✅ Support for both IAM and token-based authentication
+- ✅ Automatic systemd service generation with proper dependencies
 
 ## Installation
 
@@ -33,22 +35,85 @@ nix build github:conneroisu/archil-flake#archil
 
 #### Add to NixOS Configuration
 
-Add to your `flake.nix`:
+##### Option A: Using the NixOS Module (Recommended)
+
+Add declarative mount configuration to your `flake.nix`:
 
 ```nix
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    archil.url = "github:conneroisu/archil-flake";
+    archil-flake.url = "github:conneroisu/archil-flake";
   };
 
-  outputs = { nixpkgs, archil, ... }: {
+  outputs = { nixpkgs, archil-flake, ... }: {
+    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        # Import the Archil NixOS module
+        archil-flake.nixosModules.default
+
+        # Add the overlay to get the archil package
+        { nixpkgs.overlays = [ archil-flake.overlays.default ]; }
+
+        # Your configuration
+        {
+          services.archil = {
+            enable = true;
+
+            mounts = {
+              # Example: IAM-authenticated mount (for AWS EC2 instances)
+              data-disk = {
+                diskName = "production-data";
+                mountPoint = "/mnt/data";
+                region = "us-east-1";
+                authMethod = "iam";
+              };
+
+              # Example: Token-authenticated mount using a file
+              backup-disk = {
+                diskName = "backup-storage";
+                mountPoint = "/mnt/backup";
+                region = "us-west-2";
+                authMethod = "token";
+                authTokenFile = "/run/secrets/archil-token";
+              };
+            };
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+The module automatically:
+- Loads the FUSE kernel module
+- Creates systemd services for each mount (e.g., `archil-mount-data-disk.service`)
+- Creates mount point directories if they don't exist
+- Configures automatic restart on failure with exponential backoff
+- Handles graceful unmount on service stop
+
+See `example-configuration.nix` for more examples.
+
+##### Option B: Manual Package Installation
+
+Just install the package without declarative mounts:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    archil-flake.url = "github:conneroisu/archil-flake";
+  };
+
+  outputs = { nixpkgs, archil-flake, ... }: {
     nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
         {
           environment.systemPackages = [
-            archil.packages.x86_64-linux.archil
+            archil-flake.packages.x86_64-linux.archil
           ];
         }
       ];
@@ -93,7 +158,109 @@ curl https://s3.amazonaws.com/archil-client/install | sh
 - Linux kernel 5.1 or greater
 - libfuse2 installed (`apt install fuse` on Debian/Ubuntu)
 
+## NixOS Module Configuration
+
+The NixOS module provides declarative configuration for Archil mounts. Here are the available options:
+
+### Module Options
+
+- `services.archil.enable` - Enable the Archil service (boolean)
+- `services.archil.package` - Override the Archil package (package, default: `pkgs.archil`)
+- `services.archil.mounts.<name>` - Attribute set of mount configurations
+
+### Mount Configuration Options
+
+Each mount in `services.archil.mounts.<name>` supports:
+
+- `diskName` - Name of the Archil disk to mount (string, required)
+- `mountPoint` - Absolute path where the disk should be mounted (string, required)
+- `region` - Archil region where the disk is located (string, required)
+- `authMethod` - Authentication method: `"iam"` or `"token"` (default: `"iam"`)
+- `authToken` - Authentication token (string, optional - WARNING: stored in Nix store)
+- `authTokenFile` - Path to file containing authentication token (path, optional - recommended for production)
+
+### Authentication Methods
+
+#### IAM Authentication (AWS EC2/ECS)
+
+For AWS environments with IAM roles:
+
+```nix
+services.archil.mounts.my-disk = {
+  diskName = "production-data";
+  mountPoint = "/mnt/data";
+  region = "us-east-1";
+  authMethod = "iam";  # Uses EC2 instance profile or ECS task role
+};
+```
+
+#### Token Authentication with File (Recommended for Production)
+
+For secure token storage:
+
+```nix
+services.archil.mounts.my-disk = {
+  diskName = "production-data";
+  mountPoint = "/mnt/data";
+  region = "us-east-1";
+  authMethod = "token";
+  authTokenFile = "/run/secrets/archil-token";  # Secure, not in Nix store
+};
+```
+
+Works well with secrets management tools like:
+- [agenix](https://github.com/ryantm/agenix)
+- [sops-nix](https://github.com/Mic92/sops-nix)
+- systemd encrypted credentials
+
+#### Token Authentication with Direct Token (Development Only)
+
+For testing and development:
+
+```nix
+services.archil.mounts.dev-disk = {
+  diskName = "dev-storage";
+  mountPoint = "/mnt/dev";
+  region = "us-east-1";
+  authMethod = "token";
+  authToken = "your-token-here";  # WARNING: This goes into the Nix store!
+};
+```
+
+**Security Warning**: The module will emit a warning when using `authToken` directly, as it stores the token in the world-readable Nix store.
+
+### Managing Mounts with systemd
+
+Each mount generates a systemd service named `archil-mount-<name>.service`:
+
+```bash
+# Check mount status
+systemctl status archil-mount-data-disk
+
+# Restart a mount
+systemctl restart archil-mount-data-disk
+
+# View mount logs
+journalctl -u archil-mount-data-disk
+
+# Stop a mount
+systemctl stop archil-mount-data-disk
+```
+
+### Configuration Validation
+
+The module validates your configuration at evaluation time and will error if:
+- Mount point is not an absolute path
+- Token authentication is configured without `authToken` or `authTokenFile`
+- Both `authToken` and `authTokenFile` are set simultaneously
+- Multiple mounts use the same mount point
+- No mounts are configured when `services.archil.enable = true`
+
 ## Usage
+
+### Manual Usage (Without NixOS Module)
+
+If you're using the package without the NixOS module, here's how to use Archil manually:
 
 ### 1. Authentication
 
