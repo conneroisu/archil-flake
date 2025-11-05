@@ -72,21 +72,26 @@ in
   pkgs.runCommand "archil-module-test" {} ''
     # Validate module assertions first
     echo "Validating module assertions..."
-    ${let
-      failedAssertions = builtins.filter (a: !a.assertion) evalTest.config.assertions;
-    in
-      if builtins.length failedAssertions > 0
-      then ''
-        echo "ERROR: Module assertions failed:"
-        ${builtins.concatStringsSep "\n" (map (a: "echo '  - ${a.message}'") failedAssertions)}
-        exit 1
-      ''
-      else "echo 'Module assertions: OK'"
+    ${
+      let
+        failedAssertions = builtins.filter (a: !a.assertion) evalTest.config.assertions;
+      in
+        if builtins.length failedAssertions > 0
+        then ''
+          echo "ERROR: Module assertions failed:"
+          ${builtins.concatStringsSep "\n" (map (a: "echo '  - ${a.message}'") failedAssertions)}
+          exit 1
+        ''
+        else "echo 'Module assertions: OK'"
     }
 
     # Test that the module evaluates
     echo "Testing module evaluation..."
-    if ${if evalTest.config.services.archil.enable then "true" else "false"}; then
+    if ${
+      if evalTest.config.services.archil.enable
+      then "true"
+      else "false"
+    }; then
       echo "Module enabled: OK"
     else
       echo "ERROR: Module is not enabled"
@@ -94,14 +99,22 @@ in
     fi
 
     # Test that systemd services were created
-    if ${if evalTest.config.systemd.services ? "archil-mount-test-disk" then "true" else "false"}; then
+    if ${
+      if evalTest.config.systemd.services ? "archil-mount-test-disk"
+      then "true"
+      else "false"
+    }; then
       echo "IAM service created: OK"
     else
       echo "ERROR: IAM service 'archil-mount-test-disk' was not created"
       exit 1
     fi
 
-    if ${if evalTest.config.systemd.services ? "archil-mount-token-disk" then "true" else "false"}; then
+    if ${
+      if evalTest.config.systemd.services ? "archil-mount-token-disk"
+      then "true"
+      else "false"
+    }; then
       echo "Token service created: OK"
     else
       echo "ERROR: Token service 'archil-mount-token-disk' was not created"
@@ -109,7 +122,11 @@ in
     fi
 
     # Test that FUSE module is loaded
-    if ${if builtins.elem "fuse" evalTest.config.boot.kernelModules then "true" else "false"}; then
+    if ${
+      if builtins.elem "fuse" evalTest.config.boot.kernelModules
+      then "true"
+      else "false"
+    }; then
       echo "FUSE module loaded: OK"
     else
       echo "ERROR: FUSE kernel module is not loaded"
@@ -117,7 +134,11 @@ in
     fi
 
     # Test that package is in systemPackages
-    if ${if builtins.elem mockArchil evalTest.config.environment.systemPackages then "true" else "false"}; then
+    if ${
+      if builtins.elem mockArchil evalTest.config.environment.systemPackages
+      then "true"
+      else "false"
+    }; then
       echo "Package installed: OK"
     else
       echo "ERROR: Archil package is not in systemPackages"
@@ -125,7 +146,11 @@ in
     fi
 
     # Test warnings for insecure token usage
-    if ${if builtins.length evalTest.config.warnings > 0 then "true" else "false"}; then
+    if ${
+      if builtins.length evalTest.config.warnings > 0
+      then "true"
+      else "false"
+    }; then
       echo "Security warning present: OK"
     else
       echo "ERROR: Expected security warning for authToken usage, but none found"
