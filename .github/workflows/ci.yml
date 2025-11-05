@@ -120,7 +120,7 @@ jobs:
         id: check-fmt
         run: |
           echo "Checking code formatting..."
-          if nix fmt -- --check .; then
+          if nix fmt -- --fail-on-change; then
             echo "Formatting is correct"
             echo "needs-fix=false" >> $GITHUB_OUTPUT
           else
@@ -153,5 +153,5 @@ jobs:
         if: steps.check-fmt.outputs.needs-fix == 'true'
         run: |
           echo "Verifying formatting after auto-fix..."
-          nix fmt -- --check .
+          nix fmt -- --fail-on-change
           echo "Formatting validation successful after auto-fix"
