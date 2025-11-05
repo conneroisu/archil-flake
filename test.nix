@@ -70,22 +70,67 @@
   };
 in
   pkgs.runCommand "archil-module-test" {} ''
+    # Validate module assertions first
+    echo "Validating module assertions..."
+    ${let
+      failedAssertions = builtins.filter (a: !a.assertion) evalTest.config.assertions;
+    in
+      if builtins.length failedAssertions > 0
+      then ''
+        echo "ERROR: Module assertions failed:"
+        ${builtins.concatStringsSep "\n" (map (a: "echo '  - ${a.message}'") failedAssertions)}
+        exit 1
+      ''
+      else "echo 'Module assertions: OK'"
+    }
+
     # Test that the module evaluates
     echo "Testing module evaluation..."
-    ${pkgs.lib.optionalString (evalTest.config.services.archil.enable) "echo 'Module enabled: OK'"}
+    if ${if evalTest.config.services.archil.enable then "true" else "false"}; then
+      echo "Module enabled: OK"
+    else
+      echo "ERROR: Module is not enabled"
+      exit 1
+    fi
 
     # Test that systemd services were created
-    ${pkgs.lib.optionalString (evalTest.config.systemd.services ? "archil-mount-test-disk") "echo 'IAM service created: OK'"}
-    ${pkgs.lib.optionalString (evalTest.config.systemd.services ? "archil-mount-token-disk") "echo 'Token service created: OK'"}
+    if ${if evalTest.config.systemd.services ? "archil-mount-test-disk" then "true" else "false"}; then
+      echo "IAM service created: OK"
+    else
+      echo "ERROR: IAM service 'archil-mount-test-disk' was not created"
+      exit 1
+    fi
+
+    if ${if evalTest.config.systemd.services ? "archil-mount-token-disk" then "true" else "false"}; then
+      echo "Token service created: OK"
+    else
+      echo "ERROR: Token service 'archil-mount-token-disk' was not created"
+      exit 1
+    fi
 
     # Test that FUSE module is loaded
-    ${pkgs.lib.optionalString (builtins.elem "fuse" evalTest.config.boot.kernelModules) "echo 'FUSE module loaded: OK'"}
+    if ${if builtins.elem "fuse" evalTest.config.boot.kernelModules then "true" else "false"}; then
+      echo "FUSE module loaded: OK"
+    else
+      echo "ERROR: FUSE kernel module is not loaded"
+      exit 1
+    fi
 
     # Test that package is in systemPackages
-    ${pkgs.lib.optionalString (builtins.elem mockArchil evalTest.config.environment.systemPackages) "echo 'Package installed: OK'"}
+    if ${if builtins.elem mockArchil evalTest.config.environment.systemPackages then "true" else "false"}; then
+      echo "Package installed: OK"
+    else
+      echo "ERROR: Archil package is not in systemPackages"
+      exit 1
+    fi
 
     # Test warnings for insecure token usage
-    ${pkgs.lib.optionalString (builtins.length evalTest.config.warnings > 0) "echo 'Security warning present: OK'"}
+    if ${if builtins.length evalTest.config.warnings > 0 then "true" else "false"}; then
+      echo "Security warning present: OK"
+    else
+      echo "ERROR: Expected security warning for authToken usage, but none found"
+      exit 1
+    fi
 
     echo "All tests passed!"
     touch $out
