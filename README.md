@@ -1,5 +1,7 @@
 # Archil Storage Client - Nix Flake
 
+[![CI Validation](https://github.com/conneroisu/archil-flake/actions/workflows/ci.yml/badge.svg)](https://github.com/conneroisu/archil-flake/actions/workflows/ci.yml)
+
 Unofficial reproducible Nix package for the [Archil](https://archil.com) distributed storage client.
 
 ## What is Archil?
