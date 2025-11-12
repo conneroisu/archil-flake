@@ -14,8 +14,25 @@
     flake-utils,
     treefmt-nix,
     ...
-  }:
-    flake-utils.lib.eachDefaultSystem (system: let
+  }: let
+    # NixOS module (system-agnostic)
+    nixosModules = {
+      default = import ./modules/archil.nix;
+    };
+
+    # Overlay to provide archil package to nixpkgs
+    overlay = final: prev: {
+      archil = self.packages.${final.system}.archil;
+    };
+  in
+    {
+      # Export NixOS modules
+      inherit nixosModules;
+
+      # Export overlay
+      overlays.default = overlay;
+    }
+    // flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
         config.allowUnfree = true;
